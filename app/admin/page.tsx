@@ -245,13 +245,17 @@ export default function AdminPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <div className="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Settings className="w-6 h-6 text-blue-600" />
+            <div className="flex justify-center gap-6 mb-4">
+              <img src="/cohrrt-logo.png" alt="Cohrrt" className="h-10 object-contain" />
+              <img src="/hubitz-logo.png" alt="The Hubitz" className="h-10 object-contain" />
             </div>
-            <CardTitle className="text-center">Organizer Login</CardTitle>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: '#FF6B35' }}>
+              <Settings className="w-6 h-6 text-white" />
+            </div>
+            <CardTitle className="text-center" style={{ color: '#2B4C7E' }}>Organizer Login</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Input
@@ -272,19 +276,29 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50 p-4">
       <div className="container mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-          <p className="text-gray-600">Manage pitches and control live rating sessions</p>
+        {/* Logos Header */}
+        <div className="flex items-center justify-center gap-8 mb-6">
+          <div className="bg-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
+            <img src="/cohrrt-logo.png" alt="Cohrrt" className="h-12 object-contain" />
+          </div>
+          <div className="bg-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
+            <img src="/hubitz-logo.png" alt="The Hubitz" className="h-12 object-contain" />
+          </div>
+        </div>
+        
+        <div className="mb-8 text-center">
+          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-900 to-orange-500 bg-clip-text text-transparent">Admin Dashboard</h1>
+          <p className="text-gray-600 text-lg">Manage pitches and control live rating sessions</p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Left Column - Controls */}
           <div className="space-y-6">
             {/* Live Control */}
-            <Card>
-              <CardHeader>
+            <Card className="border-0 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-t-lg">
                 <CardTitle className="flex items-center">
                   <Play className="w-5 h-5 mr-2" />
                   Live Control
@@ -336,8 +350,8 @@ export default function AdminPage() {
             </Card>
 
             {/* Pitch Manager */}
-            <Card>
-              <CardHeader>
+            <Card className="border-0 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-t-lg">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center">
                     <BarChart3 className="w-5 h-5 mr-2" />
@@ -345,7 +359,7 @@ export default function AdminPage() {
                   </CardTitle>
                   <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                     <DialogTrigger asChild>
-                      <Button size="sm">
+                      <Button size="sm" className="bg-white text-orange-600 hover:bg-orange-50 shadow-md">
                         <Plus className="w-4 h-4 mr-1" />
                         Add Pitch
                       </Button>
@@ -547,8 +561,8 @@ export default function AdminPage() {
             </Card>
 
             {/* Feedback Control */}
-            <Card>
-              <CardHeader>
+            <Card className="border-0 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-t-lg">
                 <CardTitle className="flex items-center">
                   <MessageSquare className="w-5 h-5 mr-2" />
                   Event Feedback
