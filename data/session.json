@@ -2,6 +2,6 @@
   "id": "active",
   "current_pitch_id": null,
   "status": "idle",
-  "feedback_enabled": true,
-  "updated_at": "2025-10-24T17:11:18.996Z"
+  "feedback_enabled": false,
+  "updated_at": "2025-10-24T19:07:46.658Z"
 }
