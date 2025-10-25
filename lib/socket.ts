@@ -33,7 +33,7 @@ export type ResultsData = {
 export const initSocket = (res: NextApiResponseServerIO) => {
   if (!res.socket.server.io) {
     const io = new ServerIO(res.socket.server, {
-      path: '/api/socket',
+      path: '/backend/api/socket',
       addTrailingSlash: false,
       cors: {
         origin: "*",

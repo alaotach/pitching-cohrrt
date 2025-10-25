@@ -17,8 +17,9 @@ export interface Rating {
 export interface SessionState {
   id: string;
   current_pitch_id: string | null;
-  status: 'idle' | 'active';
+  status: 'idle' | 'active' | 'recap';
   feedback_enabled: boolean;
+  recap_index: number;
   updated_at: string;
 }
 

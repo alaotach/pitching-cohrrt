@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Pitch, SessionState, Feedback } from '@/lib/types';
 import { API_BASE_URL } from '@/lib/api';
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://cohrrt.thehubitz.com/backend';
 import { 
   Play, 
   Square, 
@@ -80,6 +80,7 @@ export default function AdminPage() {
     // Initialize socket connection
     const newSocket = io(SOCKET_URL, {
       path: '/api/socket',
+      transports: ['polling', 'websocket']
     });
 
     newSocket.on('connect', () => {
@@ -166,6 +167,28 @@ export default function AdminPage() {
     socket.emit('poll:stop', { pitchId: selectedPitchId });
     setSessionState(prev => prev ? { ...prev, current_pitch_id: null, status: 'idle' } : null);
     setCurrentResults(null);
+  };
+
+  const startRecap = () => {
+    if (!socket) return;
+    socket.emit('recap:start');
+    setSessionState(prev => prev ? { ...prev, status: 'recap' } : null);
+  };
+
+  const nextRecap = () => {
+    if (!socket) return;
+    socket.emit('recap:next');
+  };
+
+  const previousRecap = () => {
+    if (!socket) return;
+    socket.emit('recap:previous');
+  };
+
+  const endRecap = () => {
+    if (!socket) return;
+    socket.emit('recap:end');
+    setSessionState(prev => prev ? { ...prev, status: 'idle' } : null);
   };
 
   const addPitch = async () => {
@@ -276,29 +299,25 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50 p-4">
+    <div className="min-h-screen bg-white p-4">
       <div className="container mx-auto max-w-7xl">
         {/* Logos Header */}
         <div className="flex items-center justify-center gap-8 mb-6">
-          <div className="bg-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
-            <img src="/cohrrt-logo.png" alt="Cohrrt" className="h-12 object-contain" />
-          </div>
-          <div className="bg-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
-            <img src="/hubitz-logo.png" alt="The Hubitz" className="h-12 object-contain" />
-          </div>
+          <img src="/cohrrt-logo.png" alt="Cohrrt" className="h-12 object-contain" />
+          <img src="/hubitz-logo.png" alt="The Hubitz" className="h-12 object-contain" />
         </div>
         
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-900 to-orange-500 bg-clip-text text-transparent">Admin Dashboard</h1>
-          <p className="text-gray-600 text-lg">Manage pitches and control live rating sessions</p>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2" style={{ color: '#2B4C7E' }}>Admin Dashboard</h1>
+          <p className="text-gray-600">Manage pitches and control live rating sessions</p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Left Column - Controls */}
           <div className="space-y-6">
             {/* Live Control */}
-            <Card className="border-0 shadow-xl">
-              <CardHeader className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-t-lg">
+            <Card>
+              <CardHeader>
                 <CardTitle className="flex items-center">
                   <Play className="w-5 h-5 mr-2" />
                   Live Control
@@ -324,7 +343,7 @@ export default function AdminPage() {
                 <div className="flex gap-2">
                   <Button
                     onClick={startPoll}
-                    disabled={!selectedPitchId || sessionState?.status === 'active'}
+                    disabled={!selectedPitchId || sessionState?.status === 'active' || sessionState?.status === 'recap'}
                     className="flex-1"
                   >
                     <Play className="w-4 h-4 mr-2" />
@@ -346,12 +365,57 @@ export default function AdminPage() {
                     Poll is LIVE
                   </Badge>
                 )}
+
+                {/* Recap Controls */}
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="text-sm font-semibold mb-3" style={{ color: '#2B4C7E' }}>Pitch Recap</h3>
+                  
+                  {sessionState?.status !== 'recap' ? (
+                    <Button
+                      onClick={startRecap}
+                      disabled={sessionState?.status === 'active' || pitches.length === 0}
+                      className="w-full"
+                      style={{ backgroundColor: '#FF6B35', color: 'white' }}
+                    >
+                      Start Recap
+                    </Button>
+                  ) : (
+                    <>
+                      <div className="flex gap-2 mb-2">
+                        <Button
+                          onClick={previousRecap}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          ← Previous
+                        </Button>
+                        <Button
+                          onClick={nextRecap}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Next →
+                        </Button>
+                      </div>
+                      <Button
+                        onClick={endRecap}
+                        variant="destructive"
+                        className="w-full"
+                      >
+                        End Recap
+                      </Button>
+                      <Badge className="w-full justify-center mt-2" style={{ backgroundColor: '#FF6B35', color: 'white' }}>
+                        Recap Mode Active
+                      </Badge>
+                    </>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
             {/* Pitch Manager */}
-            <Card className="border-0 shadow-xl">
-              <CardHeader className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-t-lg">
+            <Card>
+              <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center">
                     <BarChart3 className="w-5 h-5 mr-2" />
@@ -359,7 +423,7 @@ export default function AdminPage() {
                   </CardTitle>
                   <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                     <DialogTrigger asChild>
-                      <Button size="sm" className="bg-white text-orange-600 hover:bg-orange-50 shadow-md">
+                      <Button size="sm">
                         <Plus className="w-4 h-4 mr-1" />
                         Add Pitch
                       </Button>
@@ -561,8 +625,8 @@ export default function AdminPage() {
             </Card>
 
             {/* Feedback Control */}
-            <Card className="border-0 shadow-xl">
-              <CardHeader className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-t-lg">
+            <Card>
+              <CardHeader>
                 <CardTitle className="flex items-center">
                   <MessageSquare className="w-5 h-5 mr-2" />
                   Event Feedback

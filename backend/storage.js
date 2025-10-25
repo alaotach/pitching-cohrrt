@@ -72,6 +72,7 @@ function getSessionState() {
     current_pitch_id: null,
     status: 'idle',
     feedback_enabled: false,
+    recap_index: 0,
     updated_at: new Date().toISOString()
   };
   return readJsonFile(SESSION_FILE, defaultState);

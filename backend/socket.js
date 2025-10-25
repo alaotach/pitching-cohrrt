@@ -7,7 +7,9 @@ function setupSocket(server) {
     cors: {
       origin: '*',
       methods: ['GET', 'POST']
-    }
+    },
+    transports: ['polling', 'websocket'],
+    allowEIO3: true
   });
 
   io.on('connection', (socket) => {
@@ -100,6 +102,90 @@ function setupSocket(server) {
         broadcastFeedback(io);
       } catch (error) {
         console.error('Feedback broadcast error:', error);
+      }
+    });
+
+    socket.on('recap:start', () => {
+      try {
+        const pitches = getPitches();
+        if (pitches.length === 0) {
+          socket.emit('error', { message: 'No pitches available' });
+          return;
+        }
+        updateSessionState({ status: 'recap', recap_index: 0, current_pitch_id: null });
+        const firstPitch = pitches[0];
+        io.to('audience').emit('recap:show', { 
+          pitch: firstPitch, 
+          index: 0, 
+          total: pitches.length,
+          results: calculateResults(firstPitch.id)
+        });
+        console.log('Recap started');
+      } catch (error) {
+        console.error('Recap start error:', error);
+        socket.emit('error', { message: 'Failed to start recap' });
+      }
+    });
+
+    socket.on('recap:next', () => {
+      try {
+        const pitches = getPitches();
+        const state = getSessionState();
+        const nextIndex = state.recap_index + 1;
+        
+        if (nextIndex >= pitches.length) {
+          // End of recap, show feedback
+          updateSessionState({ status: 'idle', recap_index: 0, feedback_enabled: true });
+          io.to('audience').emit('recap:end');
+          io.to('audience').emit('feedback:enabled', { enabled: true });
+          console.log('Recap ended, feedback enabled');
+        } else {
+          updateSessionState({ recap_index: nextIndex });
+          const nextPitch = pitches[nextIndex];
+          io.to('audience').emit('recap:show', { 
+            pitch: nextPitch, 
+            index: nextIndex, 
+            total: pitches.length,
+            results: calculateResults(nextPitch.id)
+          });
+          console.log('Recap next:', nextIndex);
+        }
+      } catch (error) {
+        console.error('Recap next error:', error);
+        socket.emit('error', { message: 'Failed to go to next pitch' });
+      }
+    });
+
+    socket.on('recap:previous', () => {
+      try {
+        const pitches = getPitches();
+        const state = getSessionState();
+        const prevIndex = Math.max(0, state.recap_index - 1);
+        
+        updateSessionState({ recap_index: prevIndex });
+        const prevPitch = pitches[prevIndex];
+        io.to('audience').emit('recap:show', { 
+          pitch: prevPitch, 
+          index: prevIndex, 
+          total: pitches.length,
+          results: calculateResults(prevPitch.id)
+        });
+        console.log('Recap previous:', prevIndex);
+      } catch (error) {
+        console.error('Recap previous error:', error);
+        socket.emit('error', { message: 'Failed to go to previous pitch' });
+      }
+    });
+
+    socket.on('recap:end', () => {
+      try {
+        updateSessionState({ status: 'idle', recap_index: 0, feedback_enabled: true });
+        io.to('audience').emit('recap:end');
+        io.to('audience').emit('feedback:enabled', { enabled: true });
+        console.log('Recap manually ended, feedback enabled');
+      } catch (error) {
+        console.error('Recap end error:', error);
+        socket.emit('error', { message: 'Failed to end recap' });
       }
     });
 

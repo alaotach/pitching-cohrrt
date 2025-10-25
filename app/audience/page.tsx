@@ -9,7 +9,7 @@ import { LoadingPulse } from '@/components/ui/loading-pulse';
 import { Textarea } from '@/components/ui/textarea';
 import { getDeviceId } from '@/lib/device';
 import { API_BASE_URL } from '@/lib/api';
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://cohrrt.thehubitz.com/backend';
 import { Users, Clock, TrendingUp, MessageSquare, QrCode } from 'lucide-react';
 
 interface PitchData {
@@ -47,6 +47,13 @@ export default function AudiencePage() {
   const [feedbackRating, setFeedbackRating] = useState<number>(0);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState<boolean>(false);
   const [audienceUrl, setAudienceUrl] = useState<string>('');
+  
+  // Recap mode state
+  const [isRecapMode, setIsRecapMode] = useState<boolean>(false);
+  const [recapPitch, setRecapPitch] = useState<any>(null);
+  const [recapIndex, setRecapIndex] = useState<number>(0);
+  const [recapTotal, setRecapTotal] = useState<number>(0);
+  const [recapResults, setRecapResults] = useState<ResultsData | null>(null);
 
   useEffect(() => {
     // Initialize device ID
@@ -68,6 +75,7 @@ export default function AudiencePage() {
     // Initialize socket connection
     const newSocket = io(SOCKET_URL, {
       path: '/api/socket',
+      transports: ['polling', 'websocket']
     });
 
 
@@ -112,6 +120,21 @@ export default function AudiencePage() {
 
     newSocket.on('feedback:enabled', (data: { enabled: boolean }) => {
       setFeedbackEnabled(data.enabled);
+    });
+
+    newSocket.on('recap:show', (data: { pitch: any; index: number; total: number; results: ResultsData }) => {
+      setIsRecapMode(true);
+      setRecapPitch(data.pitch);
+      setRecapIndex(data.index);
+      setRecapTotal(data.total);
+      setRecapResults(data.results);
+      setCurrentPitch(null);
+    });
+
+    newSocket.on('recap:end', () => {
+      setIsRecapMode(false);
+      setRecapPitch(null);
+      setRecapResults(null);
     });
 
   setSocket(newSocket);
@@ -315,23 +338,101 @@ export default function AudiencePage() {
           <img src="/hubitz-logo.png" alt="The Hubitz" className="h-12 object-contain" />
         </div>
         
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: '#2B4C7E' }}>Rate This Pitch</h1>
-          <p className="text-gray-600">Share your feedback in real-time</p>
-        </div>
+        {/* Recap Mode */}
+        {isRecapMode && recapPitch && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold mb-2" style={{ color: '#2B4C7E' }}>Pitch Recap</h1>
+              <p className="text-gray-600">Pitch {recapIndex + 1} of {recapTotal}</p>
+            </div>
 
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-2xl">{currentPitch.title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {currentPitch.description && (
-              <p className="text-gray-700 text-lg leading-relaxed">
-                {currentPitch.description}
+            <Card className="mb-6" style={{ borderColor: '#FF6B35', borderWidth: '2px' }}>
+              <CardHeader>
+                <CardTitle className="text-2xl">{recapPitch.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {recapPitch.description && (
+                  <p className="text-gray-700 text-lg leading-relaxed mb-4">
+                    {recapPitch.description}
+                  </p>
+                )}
+                
+                {/* Show results in recap */}
+                {recapResults && recapResults.count > 0 && (
+                  <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: '#f8f9fa' }}>
+                    <h3 className="font-semibold text-lg mb-3" style={{ color: '#2B4C7E' }}>
+                      Audience Ratings
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold" style={{ color: '#FF6B35' }}>
+                          {recapResults.average.toFixed(1)}
+                        </p>
+                        <p className="text-sm text-gray-600">Average Rating</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold" style={{ color: '#2B4C7E' }}>
+                          {recapResults.count}
+                        </p>
+                        <p className="text-sm text-gray-600">Total Votes</p>
+                      </div>
+                    </div>
+                    
+                    {/* Star distribution */}
+                    <div className="space-y-2">
+                      {[5, 4, 3, 2, 1].map(star => (
+                        <div key={star} className="flex items-center gap-2">
+                          <span className="text-sm w-12">{star} ⭐</span>
+                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="h-2 rounded-full"
+                              style={{
+                                width: `${recapResults.count > 0 ? (recapResults.distribution[star.toString()] || 0) / recapResults.count * 100 : 0}%`,
+                                backgroundColor: '#FF6B35'
+                              }}
+                            />
+                          </div>
+                          <span className="text-sm w-8 text-right">
+                            {recapResults.distribution[star.toString()] || 0}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#FFF5F2' }}>
+              <p className="text-sm" style={{ color: '#FF6B35' }}>
+                <strong>Admin is presenting all pitches</strong>
+                <br />
+                Feedback form will appear at the end
               </p>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        )}
+        
+        {/* Active Poll */}
+        {!isRecapMode && currentPitch && (
+          <>
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold mb-2" style={{ color: '#2B4C7E' }}>Rate This Pitch</h1>
+              <p className="text-gray-600">Share your feedback in real-time</p>
+            </div>
+
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-2xl">{currentPitch.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {currentPitch.description && (
+                  <p className="text-gray-700 text-lg leading-relaxed">
+                    {currentPitch.description}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
         {!hasRated && !donePitches.includes(currentPitch.pitchId) ? (
           <Card className="mb-6">
@@ -371,6 +472,8 @@ export default function AudiencePage() {
               </p>
             </CardContent>
           </Card>
+        )}
+          </>
         )}
 
   {/* Results are confidential, not shown to audience */}
