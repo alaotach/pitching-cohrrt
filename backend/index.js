@@ -17,6 +17,7 @@ const stateRouter = require('./routes/state');
 const exportRouter = require('./routes/export');
 const feedbackRouter = require('./routes/feedback');
 const recapRouter = require('./routes/recap');
+const eventRouter = require('./routes/event');
 
 app.use('/api/pitches', pitchesRouter);
 app.use('/api/ratings', ratingsRouter);
@@ -25,6 +26,7 @@ app.use('/api/state', stateRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/feedback', feedbackRouter);
 app.use('/api/recap', recapRouter);
+app.use('/api/event', eventRouter);
 
 app.get('/', (req, res) => {
   res.send('Backend API is running');

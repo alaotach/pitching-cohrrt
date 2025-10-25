@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { saveRatings, loadRatings } = require('../ratingsStore');
+const { checkAndStartAutoRecap } = require('../autoRecap');
 
 // GET all ratings
 router.get('/', (req, res) => {
@@ -38,6 +39,9 @@ router.post('/', (req, res) => {
     saveRatings(ratings);
     res.status(201).json(rating);
   }
+  
+  // Check if all pitches are done and auto-start recap
+  checkAndStartAutoRecap();
 });
 
 module.exports = router;

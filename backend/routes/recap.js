@@ -1,16 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { getPitches, calculateResults, getSessionState, updateSessionState } = require('../storage');
+const { forceStartRecap, stopAutoAdvance } = require('../autoRecap');
 
-// Start recap
+// Start recap (now automated, but keep for manual trigger)
 router.post('/start', (req, res) => {
   try {
-    const pitches = getPitches();
-    if (pitches.length === 0) {
+    const success = forceStartRecap();
+    if (!success) {
       return res.status(400).json({ error: 'No pitches available' });
     }
     
-    updateSessionState({ status: 'recap', recap_index: 0, current_pitch_id: null });
+    const pitches = getPitches();
     const firstPitch = pitches[0];
     const results = calculateResults(firstPitch.id);
     
@@ -112,6 +113,7 @@ router.post('/previous', (req, res) => {
 // End recap
 router.post('/end', (req, res) => {
   try {
+    stopAutoAdvance();
     updateSessionState({ status: 'idle', recap_index: 0, feedback_enabled: true });
     res.json({ success: true, feedback_enabled: true });
   } catch (error) {

@@ -140,79 +140,38 @@ export default function AdminPage() {
     }
   };
 
-  const startPoll = async () => {
-    if (!selectedPitchId) return;
+  const startEvent = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/state/poll/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pitchId: selectedPitchId }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSessionState(data.sessionState);
-        fetchCurrentResults(selectedPitchId);
-      }
-    } catch (error) {
-      console.error('Failed to start poll:', error);
-    }
-  };
-
-  const stopPoll = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/state/poll/stop`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSessionState(data.sessionState);
-        setCurrentResults(null);
-      }
-    } catch (error) {
-      console.error('Failed to stop poll:', error);
-    }
-  };
-
-  const startRecap = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/recap/start`, {
+      const response = await fetch(`${API_BASE_URL}/event/start`, {
         method: 'POST',
       });
       if (response.ok) {
         await fetchSessionState();
       }
     } catch (error) {
-      console.error('Failed to start recap:', error);
+      console.error('Failed to start event:', error);
     }
   };
 
-  const nextRecap = async () => {
+  const nextPitch = async () => {
     try {
-      await fetch(`${API_BASE_URL}/recap/next`, { method: 'POST' });
-    } catch (error) {
-      console.error('Failed to go to next:', error);
-    }
-  };
-
-  const previousRecap = async () => {
-    try {
-      await fetch(`${API_BASE_URL}/recap/previous`, { method: 'POST' });
-    } catch (error) {
-      console.error('Failed to go to previous:', error);
-    }
-  };
-
-  const endRecap = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/recap/end`, {
+      await fetch(`${API_BASE_URL}/event/next`, {
         method: 'POST',
       });
-      if (response.ok) {
-        await fetchSessionState();
-      }
+      await fetchSessionState();
     } catch (error) {
-      console.error('Failed to end recap:', error);
+      console.error('Failed to advance:', error);
+    }
+  };
+
+  const resetEvent = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/event/reset`, {
+        method: 'POST',
+      });
+      await fetchSessionState();
+    } catch (error) {
+      console.error('Failed to reset:', error);
     }
   };
 
@@ -360,92 +319,56 @@ export default function AdminPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Select Pitch</label>
-                  <Select value={selectedPitchId} onValueChange={setSelectedPitchId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a pitch to poll" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pitches.map(pitch => (
-                        <SelectItem key={pitch.id} value={pitch.id}>
-                          {pitch.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="text-sm text-gray-600 mb-4">
+                  <p>The event will automatically progress through all pitches.</p>
+                  <p>Each pitch gets 2 minutes for voting before moving to next.</p>
+                  <p>After all pitches, results recap shows for 15 seconds each, then feedback form.</p>
                 </div>
                 
                 <div className="flex gap-2">
                   <Button
-                    onClick={startPoll}
-                    disabled={!selectedPitchId || sessionState?.status === 'active' || sessionState?.status === 'recap'}
+                    onClick={startEvent}
+                    disabled={sessionState?.status !== 'idle' || pitches.length === 0}
                     className="flex-1"
+                    style={{ backgroundColor: '#2B4C7E', color: 'white' }}
                   >
                     <Play className="w-4 h-4 mr-2" />
-                    Start Poll
+                    Start Event
                   </Button>
                   <Button
-                    onClick={stopPoll}
+                    onClick={nextPitch}
                     disabled={sessionState?.status !== 'active'}
-                    variant="destructive"
+                    variant="outline"
                     className="flex-1"
                   >
-                    <Square className="w-4 h-4 mr-2" />
-                    End Poll
+                    Skip to Next →
+                  </Button>
+                  <Button
+                    onClick={resetEvent}
+                    disabled={sessionState?.status === 'idle'}
+                    variant="destructive"
+                  >
+                    Reset
                   </Button>
                 </div>
 
                 {sessionState?.status === 'active' && (
                   <Badge className="w-full justify-center bg-green-100 text-green-800 hover:bg-green-100">
-                    Poll is LIVE
+                    Event is LIVE - Auto-progressing
                   </Badge>
                 )}
 
-                {/* Recap Controls */}
-                <div className="border-t pt-4 mt-4">
-                  <h3 className="text-sm font-semibold mb-3" style={{ color: '#2B4C7E' }}>Pitch Recap</h3>
-                  
-                  {sessionState?.status !== 'recap' ? (
-                    <Button
-                      onClick={startRecap}
-                      disabled={sessionState?.status === 'active' || pitches.length === 0}
-                      className="w-full"
-                      style={{ backgroundColor: '#FF6B35', color: 'white' }}
-                    >
-                      Start Recap
-                    </Button>
-                  ) : (
-                    <>
-                      <div className="flex gap-2 mb-2">
-                        <Button
-                          onClick={previousRecap}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          ← Previous
-                        </Button>
-                        <Button
-                          onClick={nextRecap}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          Next →
-                        </Button>
-                      </div>
-                      <Button
-                        onClick={endRecap}
-                        variant="destructive"
-                        className="w-full"
-                      >
-                        End Recap
-                      </Button>
-                      <Badge className="w-full justify-center mt-2" style={{ backgroundColor: '#FF6B35', color: 'white' }}>
-                        Recap Mode Active
-                      </Badge>
-                    </>
-                  )}
-                </div>
+                {sessionState?.status === 'recap' && (
+                  <Badge className="w-full justify-center" style={{ backgroundColor: '#FF6B35', color: 'white' }}>
+                    Showing Results Recap
+                  </Badge>
+                )}
+
+                {sessionState?.feedback_enabled && (
+                  <Badge className="w-full justify-center bg-blue-100 text-blue-800 hover:bg-blue-100">
+                    Feedback Form Active
+                  </Badge>
+                )}
               </CardContent>
             </Card>
 
