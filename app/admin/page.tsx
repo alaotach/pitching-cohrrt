@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,7 +12,6 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Pitch, SessionState, Feedback } from '@/lib/types';
 import { API_BASE_URL } from '@/lib/api';
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://cohrrt.thehubitz.com/backend';
 import { 
   Play, 
   Square, 
@@ -37,7 +35,6 @@ interface ResultsData {
 }
 
 export default function AdminPage() {
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
   const [currentResults, setCurrentResults] = useState<ResultsData | null>(null);
@@ -77,43 +74,22 @@ export default function AdminPage() {
   }, []);
 
   const initializeAdmin = () => {
-    // Initialize socket connection
-    const newSocket = io(SOCKET_URL, {
-      path: '/api/socket',
-      transports: ['polling', 'websocket']
-    });
-
-    newSocket.on('connect', () => {
-      console.log('[ADMIN] Connected to server');
-      newSocket.emit('join:admin');
-    });
-
-    newSocket.onAny((event, ...args) => {
-      console.log('[ADMIN Socket Event]', event, args);
-    });
-
-
-    newSocket.on('admin:stats', (data: ResultsData) => {
-      setCurrentResults(data);
-    });
-
-    newSocket.on('admin:all-results', (data: any[]) => {
-      setAllResults(data);
-    });
-
-    newSocket.on('feedback:update', (data: Feedback[]) => {
-      setFeedbackList(data);
-    });
-
-    setSocket(newSocket);
-
     // Fetch initial data
     fetchPitches();
     fetchSessionState();
     fetchFeedback();
+    
+    // Poll for updates every 3 seconds
+    const interval = setInterval(() => {
+      fetchSessionState();
+      if (sessionState?.current_pitch_id) {
+        fetchCurrentResults(sessionState.current_pitch_id);
+      }
+      fetchFeedback();
+    }, 3000);
 
     return () => {
-      newSocket.disconnect();
+      clearInterval(interval);
     };
   };
 
@@ -154,41 +130,90 @@ export default function AdminPage() {
     }
   };
 
-  const startPoll = () => {
-  if (!socket || !selectedPitchId) return;
-  console.log('[ADMIN] Emitting poll:start for pitchId:', selectedPitchId);
-  socket.emit('poll:start', { pitchId: selectedPitchId });
-  setSessionState(prev => prev ? { ...prev, current_pitch_id: selectedPitchId, status: 'active' } : null);
+  const fetchCurrentResults = async (pitchId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/results/${pitchId}`);
+      const data = await response.json();
+      setCurrentResults(data);
+    } catch (error) {
+      console.error('Failed to fetch current results:', error);
+    }
   };
 
-  const stopPoll = () => {
-    if (!socket || !selectedPitchId) return;
-    
-    socket.emit('poll:stop', { pitchId: selectedPitchId });
-    setSessionState(prev => prev ? { ...prev, current_pitch_id: null, status: 'idle' } : null);
-    setCurrentResults(null);
+  const startPoll = async () => {
+    if (!selectedPitchId) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/state/poll/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pitchId: selectedPitchId }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSessionState(data.sessionState);
+        fetchCurrentResults(selectedPitchId);
+      }
+    } catch (error) {
+      console.error('Failed to start poll:', error);
+    }
   };
 
-  const startRecap = () => {
-    if (!socket) return;
-    socket.emit('recap:start');
-    setSessionState(prev => prev ? { ...prev, status: 'recap' } : null);
+  const stopPoll = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/state/poll/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSessionState(data.sessionState);
+        setCurrentResults(null);
+      }
+    } catch (error) {
+      console.error('Failed to stop poll:', error);
+    }
   };
 
-  const nextRecap = () => {
-    if (!socket) return;
-    socket.emit('recap:next');
+  const startRecap = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/recap/start`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        await fetchSessionState();
+      }
+    } catch (error) {
+      console.error('Failed to start recap:', error);
+    }
   };
 
-  const previousRecap = () => {
-    if (!socket) return;
-    socket.emit('recap:previous');
+  const nextRecap = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/recap/next`, { method: 'POST' });
+    } catch (error) {
+      console.error('Failed to go to next:', error);
+    }
   };
 
-  const endRecap = () => {
-    if (!socket) return;
-    socket.emit('recap:end');
-    setSessionState(prev => prev ? { ...prev, status: 'idle' } : null);
+  const previousRecap = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/recap/previous`, { method: 'POST' });
+    } catch (error) {
+      console.error('Failed to go to previous:', error);
+    }
+  };
+
+  const endRecap = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/recap/end`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        await fetchSessionState();
+      }
+    } catch (error) {
+      console.error('Failed to end recap:', error);
+    }
   };
 
   const addPitch = async () => {
@@ -255,11 +280,22 @@ export default function AdminPage() {
   };
 
   const toggleFeedback = async () => {
-    if (!socket || !sessionState) return;
+    if (!sessionState) return;
     
     const newFeedbackState = !sessionState.feedback_enabled;
-    socket.emit('feedback:toggle', { enabled: newFeedbackState });
-    setSessionState(prev => prev ? { ...prev, feedback_enabled: newFeedbackState } : null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/state/feedback/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: newFeedbackState }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSessionState(data.sessionState);
+      }
+    } catch (error) {
+      console.error('Failed to toggle feedback:', error);
+    }
   };
 
   const generateQRCode = () => {

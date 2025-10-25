@@ -16,6 +16,7 @@ const resultsRouter = require('./routes/results');
 const stateRouter = require('./routes/state');
 const exportRouter = require('./routes/export');
 const feedbackRouter = require('./routes/feedback');
+const recapRouter = require('./routes/recap');
 
 app.use('/api/pitches', pitchesRouter);
 app.use('/api/ratings', ratingsRouter);
@@ -23,16 +24,12 @@ app.use('/api/results', resultsRouter);
 app.use('/api/state', stateRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/feedback', feedbackRouter);
+app.use('/api/recap', recapRouter);
 
 app.get('/', (req, res) => {
   res.send('Backend API is running');
 });
 
-
-const server = app.listen(port, () => {
+app.listen(port, () => {
   console.log(`Backend server listening at http://localhost:${port}`);
 });
-
-// Setup socket.io
-const setupSocket = require('./socket');
-setupSocket(server);

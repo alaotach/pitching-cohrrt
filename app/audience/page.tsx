@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
 import { StarRating } from '@/components/ui/star-rating';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +8,6 @@ import { LoadingPulse } from '@/components/ui/loading-pulse';
 import { Textarea } from '@/components/ui/textarea';
 import { getDeviceId } from '@/lib/device';
 import { API_BASE_URL } from '@/lib/api';
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://cohrrt.thehubitz.com/backend';
 import { Users, Clock, TrendingUp, MessageSquare, QrCode } from 'lucide-react';
 
 interface PitchData {
@@ -26,13 +24,10 @@ interface ResultsData {
 }
 
 export default function AudiencePage() {
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [currentPitch, setCurrentPitch] = useState<PitchData | null>(null);
   const [rating, setRating] = useState<number>(0);
   const [hasRated, setHasRated] = useState<boolean>(false);
-  // Remove results from audience
-  const [results, setResults] = useState<ResultsData | null>(null); // legacy, not used
-  // Track done pitches in localStorage
+  const [results, setResults] = useState<ResultsData | null>(null);
   const [donePitches, setDonePitches] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('donePitches');
@@ -72,77 +67,17 @@ export default function AudiencePage() {
       }
     }
 
-    // Initialize socket connection
-    const newSocket = io(SOCKET_URL, {
-      path: '/api/socket',
-      transports: ['polling', 'websocket']
-    });
+    // Fetch initial state
+    fetchInitialState();
 
-
-    newSocket.on('connect', () => {
-      console.log('Connected to server');
-      newSocket.emit('join:audience');
-      // Always sync with backend state after (re)connect
+    // Poll for updates every 2 seconds
+    const interval = setInterval(() => {
       fetchInitialState();
-    });
-
-    // Debug: log all events
-    newSocket.onAny((event, ...args) => {
-      console.log('[Socket Event]', event, args);
-    });
-
-    // Listen for poll events
-    newSocket.on('poll:start', (data: PitchData) => {
-      setCurrentPitch(data);
-      setRating(0);
-      setHasRated(false);
-      setResults(null);
-    });
-
-    newSocket.on('poll:stop', () => {
-      setCurrentPitch(null);
-      setRating(0);
-      setHasRated(false);
-      setResults(null);
-    });
-
-  // Do not listen for results:update (results are confidential)
-
-    newSocket.on('rating:success', () => {
-      setHasRated(true);
-      setIsSubmitting(false);
-    });
-
-    newSocket.on('error', (error) => {
-      console.error('Socket error:', error);
-      setIsSubmitting(false);
-    });
-
-    newSocket.on('feedback:enabled', (data: { enabled: boolean }) => {
-      setFeedbackEnabled(data.enabled);
-    });
-
-    newSocket.on('recap:show', (data: { pitch: any; index: number; total: number; results: ResultsData }) => {
-      setIsRecapMode(true);
-      setRecapPitch(data.pitch);
-      setRecapIndex(data.index);
-      setRecapTotal(data.total);
-      setRecapResults(data.results);
-      setCurrentPitch(null);
-    });
-
-    newSocket.on('recap:end', () => {
-      setIsRecapMode(false);
-      setRecapPitch(null);
-      setRecapResults(null);
-    });
-
-  setSocket(newSocket);
-  // Fetch initial state
-  fetchInitialState();
+      fetchRecapState();
+    }, 2000);
 
     return () => {
-      newSocket.disconnect();
+      clearInterval(interval);
     };
   }, []);
 
@@ -156,6 +91,10 @@ export default function AudiencePage() {
           title: data.activePitch.title,
           description: data.activePitch.description
         });
+        setIsRecapMode(false);
+      } else if (data.sessionState?.status === 'idle') {
+        setCurrentPitch(null);
+        setIsRecapMode(false);
       }
       // Set feedback enabled state
       if (data.sessionState?.feedback_enabled !== undefined) {
@@ -166,19 +105,56 @@ export default function AudiencePage() {
     }
   };
 
+  const fetchRecapState = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/recap/current`);
+      const data = await response.json();
+      if (data.active) {
+        setIsRecapMode(true);
+        setRecapPitch(data.pitch);
+        setRecapIndex(data.index);
+        setRecapTotal(data.total);
+        setRecapResults(data.results);
+        setCurrentPitch(null);
+      } else if (isRecapMode) {
+        // Recap ended
+        setIsRecapMode(false);
+        setRecapPitch(null);
+        setRecapResults(null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch recap state:', error);
+    }
+  };
+
   const submitRating = async () => {
-    if (!socket || !currentPitch || !rating || hasRated || donePitches.includes(currentPitch.pitchId)) return;
+    if (!currentPitch || !rating || hasRated || donePitches.includes(currentPitch.pitchId)) return;
     setIsSubmitting(true);
-    socket.emit('rating:submit', {
-      pitchId: currentPitch.pitchId,
-      deviceId,
-      score: rating
-    });
-    // Mark this pitch as done for this user
-    const updatedDone = [...donePitches, currentPitch.pitchId];
-    setDonePitches(updatedDone);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('donePitches', JSON.stringify(updatedDone));
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/ratings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pitchId: currentPitch.pitchId,
+          deviceId,
+          score: rating
+        })
+      });
+      
+      if (response.ok) {
+        setHasRated(true);
+        // Mark this pitch as done for this user
+        const updatedDone = [...donePitches, currentPitch.pitchId];
+        setDonePitches(updatedDone);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('donePitches', JSON.stringify(updatedDone));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to submit rating:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -202,10 +178,6 @@ export default function AudiencePage() {
         setFeedbackRating(0);
         if (typeof window !== 'undefined') {
           localStorage.setItem('feedbackSubmitted', 'true');
-        }
-        // Notify via socket
-        if (socket) {
-          socket.emit('feedback:submitted');
         }
       }
     } catch (error) {
